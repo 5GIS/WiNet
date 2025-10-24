@@ -7,7 +7,7 @@
     "node": "20.x"
   },
   "scripts": {
-    "build": "prisma generate && prisma migrate deploy && tsc -p tsconfig.json",
+    "build": "prisma generate && tsc -p tsconfig.json",
     "start": "node dist/main.js",
     "start:dev": "ts-node-dev --respawn --transpile-only src/main.ts",
     "test": "jest --detectOpenHandles --forceExit",

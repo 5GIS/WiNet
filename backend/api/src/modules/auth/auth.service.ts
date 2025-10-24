@@ -109,11 +109,9 @@ export class AuthService {
 
   async refreshToken(dto: RefreshTokenDto): Promise<RefreshTokenResponseDto> {
     const newAccessToken = `access_${randomUUID()}`;
-    const newRefreshToken = `refresh_${randomUUID()}`;
 
     return {
       accessToken: newAccessToken,
-      refreshToken: newRefreshToken,
       expiresIn: 3600,
     };
   }
@@ -124,6 +122,8 @@ export class AuthService {
       email: user.email,
       phone: user.phone,
       role: user.role,
+      verified: true,
+      createdAt: user.createdAt,
     };
   }
 }

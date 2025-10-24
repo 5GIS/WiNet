@@ -22,6 +22,7 @@ const technicians_module_1 = require("./technicians/technicians.module");
 const shop_module_1 = require("./shop/shop.module");
 const idempotency_middleware_1 = require("../common/middleware/idempotency.middleware");
 const logger_interceptor_1 = require("../common/interceptors/logger.interceptor");
+const prisma_service_1 = require("../common/prisma.service");
 let AppModule = class AppModule {
     configure(consumer) {
         consumer
@@ -46,6 +47,7 @@ exports.AppModule = AppModule = __decorate([
         controllers: [app_controller_1.AppController],
         providers: [
             app_service_1.AppService,
+            prisma_service_1.PrismaService,
             {
                 provide: core_1.APP_INTERCEPTOR,
                 useClass: logger_interceptor_1.LoggerInterceptor,

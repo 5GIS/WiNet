@@ -18,7 +18,7 @@ export class OffersService {
       where,
     });
     
-    return offers.map(o => this.toOfferDto(o));
+    return offers.map(o => this.toOfferDto(o, routerId || 'default-router'));
   }
 
   async findOne(id: string): Promise<OfferDto> {
@@ -30,7 +30,7 @@ export class OffersService {
       throw new NotFoundException('Offer not found');
     }
 
-    return this.toOfferDto(offer);
+    return this.toOfferDto(offer, 'default-router');
   }
 
   async create(dto: CreateOfferDto): Promise<OfferDto> {
@@ -38,13 +38,13 @@ export class OffersService {
       data: {
         name: dto.name,
         priceCents: dto.price * 100,
-        durationMinutes: dto.durationMinutes,
-        bandwidthLimitKbps: dto.bandwidthLimit,
+        durationMinutes: dto.duration,
+        bandwidthLimitKbps: dto.bandwidth?.download || 5120,
         active: true,
       },
     });
 
-    return this.toOfferDto(offer);
+    return this.toOfferDto(offer, dto.routerId);
   }
 
   async update(id: string, dto: UpdateOfferDto): Promise<OfferDto> {
@@ -61,13 +61,11 @@ export class OffersService {
       data: {
         ...(dto.name && { name: dto.name }),
         ...(dto.price && { priceCents: dto.price * 100 }),
-        ...(dto.durationMinutes && { durationMinutes: dto.durationMinutes }),
-        ...(dto.bandwidthLimit && { bandwidthLimitKbps: dto.bandwidthLimit }),
         ...(dto.active !== undefined && { active: dto.active }),
       },
     });
 
-    return this.toOfferDto(updated);
+    return this.toOfferDto(updated, 'default-router');
   }
 
   async delete(id: string): Promise<void> {
@@ -84,15 +82,19 @@ export class OffersService {
     });
   }
 
-  private toOfferDto(offer: any): OfferDto {
+  private toOfferDto(offer: any, routerId: string): OfferDto {
     return {
       id: offer.id,
       name: offer.name,
+      description: `${offer.durationMinutes} minutes WiFi access`,
+      duration: offer.durationMinutes,
+      bandwidth: {
+        download: offer.bandwidthLimitKbps || 5120,
+        upload: (offer.bandwidthLimitKbps || 5120) / 2,
+      },
       price: offer.priceCents / 100,
       currency: 'EUR',
-      durationMinutes: offer.durationMinutes,
-      bandwidthLimit: offer.bandwidthLimitKbps,
-      routerId: undefined,
+      routerId,
       active: offer.active,
     };
   }

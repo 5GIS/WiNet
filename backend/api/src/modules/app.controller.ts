@@ -17,6 +17,14 @@ export class AppController {
 
   @Get('debug/seed')
   async debugSeed() {
+    // Security: Only allow in development mode
+    if (process.env.NODE_ENV === 'production') {
+      return {
+        error: 'Debug endpoint disabled in production',
+        statusCode: 403,
+      };
+    }
+
     const [users, offers, routers, themes] = await Promise.all([
       this.prisma.user.findMany({ select: { id: true, email: true, role: true } }),
       this.prisma.offer.findMany({ select: { id: true, name: true, priceCents: true, active: true } }),
@@ -25,7 +33,8 @@ export class AppController {
     ]);
 
     return {
-      message: 'Database seed data',
+      message: 'Database seed data (development only)',
+      environment: process.env.NODE_ENV || 'development',
       counts: {
         users: users.length,
         offers: offers.length,

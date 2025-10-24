@@ -26,7 +26,7 @@ export class AuthController {
 
   @Get('me')
   async getProfile(): Promise<UserDto> {
-    return this.authService.getProfile('mock-user-id');
+    return this.authService.getMe('mock-user-id');
   }
 
   @Post('refresh')

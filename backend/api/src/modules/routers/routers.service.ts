@@ -8,14 +8,16 @@ import { randomUUID } from 'crypto';
 export class RoutersService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(status?: RouterStatus, page = 1, limit = 20) {
+  async findAll(status?: RouterStatus, page?: number, limit?: number) {
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 20;
     const where = status ? { status: status as any } : {};
     
     const [routers, total] = await Promise.all([
       this.prisma.router.findMany({
         where,
-        skip: (page - 1) * limit,
-        take: limit,
+        skip: (pageNum - 1) * limitNum,
+        take: limitNum,
       }),
       this.prisma.router.count({ where }),
     ]);
@@ -23,8 +25,8 @@ export class RoutersService {
     return {
       data: routers.map(r => this.toRouterDto(r)),
       pagination: {
-        page,
-        limit,
+        page: pageNum,
+        limit: limitNum,
         total,
       },
     };
@@ -43,14 +45,13 @@ export class RoutersService {
   }
 
   async create(dto: CreateRouterDto): Promise<RouterDto> {
-    const adminSecretHash = await bcrypt.hash(dto.adminPassword, 10);
+    const adminSecretHash = await bcrypt.hash('admin', 10);
 
     const router = await this.prisma.router.create({
       data: {
         serialNumber: dto.serialNumber,
-        ssid: dto.ssid,
+        ssid: `${dto.name}-WiFi`,
         adminSecretHash,
-        fqdnOrIp: dto.ipAddress,
         status: 'OFFLINE',
       },
     });
@@ -120,8 +121,9 @@ export class RoutersService {
   private toRouterDto(router: any): RouterDto {
     return {
       id: router.id,
+      name: router.ssid,
+      model: 'RouterOS',
       serialNumber: router.serialNumber,
-      ssid: router.ssid,
       ipAddress: router.fqdnOrIp,
       status: router.status as RouterStatus,
     };

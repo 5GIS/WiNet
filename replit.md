@@ -174,18 +174,24 @@ Configured for Replit autoscale deployment:
 
 ## Architecture Notes
 
-### Current Implementation
-- **Data Layer**: In-memory mock data (Map-based storage)
-- **Authentication**: Mock implementation (ready for JWT integration)
+### Current Implementation ✅ Production-Ready
+- **Data Layer**: ✅ **Prisma ORM with PostgreSQL (Railway)**
+  - 7 models: User, Router, Offer, Ticket, Payment, Theme, Technician
+  - Migrations managed with Prisma Migrate
+  - Seed data for development (2 users, 1 router, 2 offers, 2 themes)
+- **Authentication**: Bcrypt password hashing + database user lookup
 - **Validation**: class-validator decorators on all DTOs
 - **Error Handling**: Global exception filters with proper HTTP codes
 - **Logging**: JSON structured logs with sensitive data redaction
 
-### Ready for Production Integration
-- Database: Services designed for easy ORM integration (TypeORM, Prisma)
-- JWT Auth: Guard structure ready for @nestjs/jwt
-- Real Payments: Webhook handler ready for Stripe/PayPal
-- File Upload: Multer configured for KYC documents
+### Database Integration (October 24, 2025)
+- **Provider**: Railway PostgreSQL
+- **ORM**: Prisma 6.18
+- **Modules Connected**: Auth, Routers, Offers (CRUD fully operational)
+- **Seed Credentials**:
+  - Admin: `admin@winet.demo` / `admin123`
+  - Manager: `manager@winet.demo` / `manager123`
+- **Debug Endpoint**: `GET /debug/seed` (development only, returns 403 in production)
 
 ## Security Considerations
 

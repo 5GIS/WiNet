@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, ForbiddenException } from '@nestjs/common';
 import { AppService } from './app.service';
 import { PrismaService } from '../common/prisma.service';
 
@@ -19,10 +19,7 @@ export class AppController {
   async debugSeed() {
     // Security: Only allow in development mode
     if (process.env.NODE_ENV === 'production') {
-      return {
-        error: 'Debug endpoint disabled in production',
-        statusCode: 403,
-      };
+      throw new ForbiddenException('Debug endpoint disabled in production');
     }
 
     const [users, offers, routers, themes] = await Promise.all([

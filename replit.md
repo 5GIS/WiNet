@@ -90,6 +90,10 @@ All tests passing (17/17):
 - `GET /` - Service information
 - `GET /health` - Health check
 
+### Admin Endpoints (Protected)
+- `POST /admin/seed` - Initialize database with demo data (requires `Authorization: Bearer <ADMIN_SECRET>`)
+- `GET /debug/seed` - View seed data (development only, disabled in production)
+
 ### Auth Module (`/auth`)
 - `POST /auth/register` - User registration with OTP
 - `POST /auth/verify-otp` - OTP verification

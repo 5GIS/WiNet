@@ -1,24 +1,27 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateRouterDto, RouterDto, ProvisionRouterDto, ProvisionResponseDto, RouterHealthDto, RouterStatus } from './dto/router.dto';
+import { PrismaService } from '../../common/prisma.service';
+import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 
 @Injectable()
 export class RoutersService {
-  private routers: Map<string, RouterDto> = new Map();
+  constructor(private prisma: PrismaService) {}
 
   async findAll(status?: RouterStatus, page = 1, limit = 20) {
-    let routers = Array.from(this.routers.values());
+    const where = status ? { status: status as any } : {};
     
-    if (status) {
-      routers = routers.filter(r => r.status === status);
-    }
-
-    const total = routers.length;
-    const start = (page - 1) * limit;
-    const data = routers.slice(start, start + limit);
+    const [routers, total] = await Promise.all([
+      this.prisma.router.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.router.count({ where }),
+    ]);
 
     return {
-      data,
+      data: routers.map(r => this.toRouterDto(r)),
       pagination: {
         page,
         limit,
@@ -28,29 +31,43 @@ export class RoutersService {
   }
 
   async findOne(id: string): Promise<RouterDto> {
-    const router = this.routers.get(id);
+    const router = await this.prisma.router.findUnique({
+      where: { id },
+    });
+
     if (!router) {
       throw new NotFoundException('Router not found');
     }
-    return router;
+
+    return this.toRouterDto(router);
   }
 
   async create(dto: CreateRouterDto): Promise<RouterDto> {
-    const router: RouterDto = {
-      id: randomUUID(),
-      ...dto,
-      status: RouterStatus.OFFLINE,
-    };
+    const adminSecretHash = await bcrypt.hash(dto.adminPassword, 10);
 
-    this.routers.set(router.id, router);
-    return router;
+    const router = await this.prisma.router.create({
+      data: {
+        serialNumber: dto.serialNumber,
+        ssid: dto.ssid,
+        adminSecretHash,
+        fqdnOrIp: dto.ipAddress,
+        status: 'OFFLINE',
+      },
+    });
+
+    return this.toRouterDto(router);
   }
 
   async provision(id: string, dto: ProvisionRouterDto): Promise<ProvisionResponseDto> {
     const router = await this.findOne(id);
     
-    router.ipAddress = dto.ipAddress;
-    router.status = RouterStatus.PROVISIONING;
+    await this.prisma.router.update({
+      where: { id },
+      data: {
+        fqdnOrIp: dto.ipAddress,
+        status: 'ONLINE',
+      },
+    });
     
     const script = this.generateRouterScript(dto);
     
@@ -62,10 +79,23 @@ export class RoutersService {
   }
 
   async getHealth(id: string): Promise<RouterHealthDto> {
-    const router = await this.findOne(id);
+    const router = await this.prisma.router.findUnique({
+      where: { id },
+    });
+
+    if (!router) {
+      throw new NotFoundException('Router not found');
+    }
+
+    await this.prisma.router.update({
+      where: { id },
+      data: {
+        lastSeenAt: new Date(),
+      },
+    });
     
     return {
-      status: router.status === RouterStatus.ONLINE ? 'online' : 'offline',
+      status: router.status === 'ONLINE' ? 'online' : 'offline',
       uptime: Math.floor(Math.random() * 100000),
       connectedClients: Math.floor(Math.random() * 50),
       cpuUsage: Math.random() * 100,
@@ -85,5 +115,15 @@ export class RoutersService {
 /interface wireless security-profiles add name=winet-profile mode=wpa2-psk wpa2-pre-shared-key=${dto.wifiPassword || 'changeme'}
 /interface wireless set wlan1 ssid="${dto.wifiSsid || 'WiNet-WiFi'}" security-profile=winet-profile
     `.trim();
+  }
+
+  private toRouterDto(router: any): RouterDto {
+    return {
+      id: router.id,
+      serialNumber: router.serialNumber,
+      ssid: router.ssid,
+      ipAddress: router.fqdnOrIp,
+      status: router.status as RouterStatus,
+    };
   }
 }

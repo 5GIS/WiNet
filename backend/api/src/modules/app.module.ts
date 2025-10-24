@@ -13,6 +13,7 @@ import { TechniciansModule } from './technicians/technicians.module';
 import { ShopModule } from './shop/shop.module';
 import { IdempotencyMiddleware } from '../common/middleware/idempotency.middleware';
 import { LoggerInterceptor } from '../common/interceptors/logger.interceptor';
+import { PrismaService } from '../common/prisma.service';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { LoggerInterceptor } from '../common/interceptors/logger.interceptor';
   controllers: [AppController],
   providers: [
     AppService,
+    PrismaService,
     {
       provide: APP_INTERCEPTOR,
       useClass: LoggerInterceptor,

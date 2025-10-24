@@ -3,32 +3,46 @@ import { RegisterDto, RegisterResponseDto } from './dto/register.dto';
 import { LoginDto, LoginResponseDto, UserDto } from './dto/login.dto';
 import { VerifyOtpDto, VerifyOtpResponseDto } from './dto/verify-otp.dto';
 import { RefreshTokenDto, RefreshTokenResponseDto } from './dto/refresh-token.dto';
+import { PrismaService } from '../../common/prisma.service';
+import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 
 @Injectable()
 export class AuthService {
-  private users: Map<string, any> = new Map();
   private otpStore: Map<string, string> = new Map();
 
+  constructor(private prisma: PrismaService) {}
+
   async register(dto: RegisterDto): Promise<RegisterResponseDto> {
-    if (Array.from(this.users.values()).some(u => u.email === dto.email)) {
-      throw new ConflictException('Email already in use');
+    const existingUser = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: dto.email },
+          ...(dto.phone ? [{ phone: dto.phone }] : []),
+        ],
+      },
+    });
+
+    if (existingUser) {
+      throw new ConflictException('Email or phone already in use');
     }
 
-    const userId = randomUUID();
+    const passwordHash = await bcrypt.hash(dto.password, 10);
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     
-    this.users.set(userId, {
-      id: userId,
-      ...dto,
-      verified: false,
-      createdAt: new Date(),
+    const user = await this.prisma.user.create({
+      data: {
+        email: dto.email,
+        phone: dto.phone,
+        passwordHash,
+        role: 'CUSTOMER',
+      },
     });
     
-    this.otpStore.set(userId, otp);
+    this.otpStore.set(user.id, otp);
 
     return {
-      userId,
+      userId: user.id,
       message: `OTP sent to ${dto.phone || dto.email}`,
       otpExpiresIn: 300,
     };
@@ -40,9 +54,12 @@ export class AuthService {
       throw new UnauthorizedException('Invalid or expired OTP');
     }
 
-    const user = this.users.get(dto.userId);
-    if (user) {
-      user.verified = true;
+    const user = await this.prisma.user.findUnique({
+      where: { id: dto.userId },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
     }
 
     this.otpStore.delete(dto.userId);
@@ -54,14 +71,17 @@ export class AuthService {
   }
 
   async login(dto: LoginDto): Promise<LoginResponseDto> {
-    const user = Array.from(this.users.values()).find(u => u.email === dto.email);
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
     
-    if (!user || user.password !== dto.password) {
+    if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    if (!user.verified) {
-      throw new UnauthorizedException('Account not verified');
+    const validPassword = await bcrypt.compare(dto.password, user.passwordHash);
+    if (!validPassword) {
+      throw new UnauthorizedException('Invalid credentials');
     }
 
     const accessToken = `access_${randomUUID()}`;
@@ -75,21 +95,25 @@ export class AuthService {
     };
   }
 
-  async getProfile(userId: string): Promise<UserDto> {
-    const user = this.users.get(userId);
+  async getMe(userId: string): Promise<UserDto> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
+
     return this.toUserDto(user);
   }
 
   async refreshToken(dto: RefreshTokenDto): Promise<RefreshTokenResponseDto> {
-    if (!dto.refreshToken.startsWith('refresh_')) {
-      throw new UnauthorizedException('Invalid refresh token');
-    }
+    const newAccessToken = `access_${randomUUID()}`;
+    const newRefreshToken = `refresh_${randomUUID()}`;
 
     return {
-      accessToken: `access_${randomUUID()}`,
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
       expiresIn: 3600,
     };
   }
@@ -100,8 +124,6 @@ export class AuthService {
       email: user.email,
       phone: user.phone,
       role: user.role,
-      verified: user.verified,
-      createdAt: user.createdAt,
     };
   }
 }

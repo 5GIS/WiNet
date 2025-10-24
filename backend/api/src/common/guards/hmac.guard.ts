@@ -2,12 +2,24 @@ import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from
 import { Request } from 'express';
 import { createHmac } from 'crypto';
 
+interface RequestWithRawBody extends Request {
+  rawBody?: Buffer;
+}
+
 @Injectable()
 export class HmacGuard implements CanActivate {
-  private readonly webhookSecret = process.env.WEBHOOK_SECRET || 'default-webhook-secret';
+  private readonly webhookSecret: string | undefined;
+
+  constructor() {
+    this.webhookSecret = process.env.WEBHOOK_SECRET;
+  }
 
   canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest<Request>();
+    if (!this.webhookSecret) {
+      throw new UnauthorizedException('WEBHOOK_SECRET not configured - webhook endpoint is disabled');
+    }
+
+    const request = context.switchToHttp().getRequest<RequestWithRawBody>();
     
     const signature = request.headers['x-hmac-signature'] as string;
     const timestamp = request.headers['x-timestamp'] as string;
@@ -23,9 +35,10 @@ export class HmacGuard implements CanActivate {
       throw new UnauthorizedException('Request timestamp expired (max 5 minutes)');
     }
 
-    const body = JSON.stringify(request.body);
+    const rawBody = request.rawBody || Buffer.from(JSON.stringify(request.body));
+    
     const expectedSignature = createHmac('sha256', this.webhookSecret)
-      .update(body + timestamp)
+      .update(Buffer.concat([rawBody, Buffer.from(timestamp)]))
       .digest('hex');
 
     if (signature !== expectedSignature) {

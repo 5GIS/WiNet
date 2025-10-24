@@ -21,6 +21,10 @@ let AppController = class AppController {
     root() { return { ok: true, service: 'WiNet API', docs: '/health' }; }
     health() { return { status: 'ok', ts: new Date().toISOString() }; }
     async debugSeed() {
+        // Security: Only allow in development mode
+        if (process.env.NODE_ENV === 'production') {
+            throw new common_1.ForbiddenException('Debug endpoint disabled in production');
+        }
         const [users, offers, routers, themes] = await Promise.all([
             this.prisma.user.findMany({ select: { id: true, email: true, role: true } }),
             this.prisma.offer.findMany({ select: { id: true, name: true, priceCents: true, active: true } }),
@@ -28,7 +32,8 @@ let AppController = class AppController {
             this.prisma.theme.findMany({ select: { id: true, name: true, tier: true } }),
         ]);
         return {
-            message: 'Database seed data',
+            message: 'Database seed data (development only)',
+            environment: process.env.NODE_ENV || 'development',
             counts: {
                 users: users.length,
                 offers: offers.length,

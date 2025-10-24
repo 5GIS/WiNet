@@ -32,6 +32,14 @@ WiNet is a minimal NestJS 10 API project that provides a basic health check endp
 - **Dependencies**: Fixed @nestjs/axios version from ^10.0.0 to ^3.0.0
 - **Workflow**: Created API Server workflow using ts-node-dev for hot reload
 - **Build System**: TypeScript compilation configured with NestJS
+- **OpenAPI Specification**: Created comprehensive OpenAPI 3.0 documentation covering 8 modules (Auth, Routers, Offers, Tickets, Payments, Portal Themes, Technicians, Shop) with complete security features:
+  - JWT Bearer authentication + OTP validation
+  - Idempotency-Key on all critical create operations
+  - Role-based access control (admin, merchant, technician, customer)
+  - HMAC webhook security (X-HMAC-Signature + X-Timestamp)
+  - Complete error responses (4xx/5xx)
+  - Realistic examples for all endpoints
+  - Production-ready and validated
 
 ## Technology Stack
 - **Framework**: NestJS 10
@@ -40,9 +48,22 @@ WiNet is a minimal NestJS 10 API project that provides a basic health check endp
 - **Package Manager**: npm
 - **Dev Tool**: ts-node-dev (hot reload)
 
-## API Endpoints
+## API Endpoints (Current)
 - `GET /` - Root endpoint (returns service info)
 - `GET /health` - Health check endpoint (returns status and timestamp)
+
+## Planned API Modules (OpenAPI Spec)
+The complete OpenAPI 3.0 specification in `docs/openapi.yml` defines:
+1. **Auth**: OTP/JWT authentication, register, login, profile
+2. **Routers**: Router management, provisioning, health monitoring
+3. **Offers**: CRUD operations for WiFi access offers
+4. **Tickets**: Ticket generation, validation, batch preloading
+5. **Payments**: Payment intents, webhooks with HMAC security
+6. **Portal Themes**: Custom captive portal themes with deployment
+7. **Technicians**: Registration, KYC, mission management
+8. **Shop**: Product inventory, orders, serial number activation
+
+See `docs/openapi.yml` for complete documentation with examples and error responses.
 
 ## Development
 The API runs in development mode with hot reload enabled. Any changes to TypeScript files will automatically restart the server.

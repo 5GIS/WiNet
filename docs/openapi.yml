@@ -1,11 +1,1793 @@
 openapi: 3.0.3
 info:
   title: WiNet API
-  version: 0.1.0
+  version: 1.0.0
+  description: |
+    API complète WiNet pour gestion de réseaux WiFi, hotspots, paiements et boutique.
+    
+    ## Authentification
+    - **JWT Bearer Token** pour la plupart des endpoints
+    - **OTP** pour validation SMS/Email
+    - **HMAC** pour webhooks (X-HMAC-Signature + X-Timestamp)
+    
+    ## Idempotence
+    Utilisez l'en-tête `Idempotency-Key` (UUID v4) pour les opérations critiques (paiements, création).
+    
+    ## Rôles & Permissions
+    - **admin**: Accès complet
+    - **technician**: Gestion routers, missions
+    - **merchant**: Gestion offres, tickets, portails
+    - **customer**: Achat tickets, consultation
+  contact:
+    name: WiNet Support
+    email: support@winet.com
+
+servers:
+  - url: https://api.winet.com/v1
+    description: Production
+  - url: http://localhost:5000
+    description: Development
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Auth
+    description: Authentification et gestion utilisateurs
+  - name: Routers
+    description: Gestion des routeurs WiFi
+  - name: Offers
+    description: Offres et forfaits internet
+  - name: Tickets
+    description: Tickets d'accès WiFi
+  - name: Payments
+    description: Paiements et transactions
+  - name: Portal Themes
+    description: Personnalisation portail captif
+  - name: Technicians
+    description: Gestion techniciens
+  - name: Shop
+    description: Boutique matériel
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      description: UUID v4 pour garantir l'idempotence
+      required: true
+      schema:
+        type: string
+        format: uuid
+        example: "550e8400-e29b-41d4-a716-446655440000"
+
+  schemas:
+    Error:
+      type: object
+      required:
+        - error
+        - message
+        - statusCode
+      properties:
+        error:
+          type: string
+          example: "Bad Request"
+        message:
+          type: string
+          example: "Invalid input data"
+        statusCode:
+          type: integer
+          example: 400
+        details:
+          type: array
+          items:
+            type: string
+          example: ["email is required", "password too short"]
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        role:
+          type: string
+          enum: [admin, technician, merchant, customer]
+        verified:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    Router:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "Router-Cafe-Centre"
+        model:
+          type: string
+          example: "MikroTik hAP ac2"
+        serialNumber:
+          type: string
+          example: "ABC123456789"
+        ipAddress:
+          type: string
+          format: ipv4
+          example: "192.168.1.1"
+        macAddress:
+          type: string
+          example: "00:0C:42:12:34:56"
+        status:
+          type: string
+          enum: [online, offline, provisioning, maintenance]
+        location:
+          type: object
+          properties:
+            latitude:
+              type: number
+            longitude:
+              type: number
+            address:
+              type: string
+        lastSeen:
+          type: string
+          format: date-time
+        merchantId:
+          type: string
+          format: uuid
+
+    Offer:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "1h WiFi"
+        description:
+          type: string
+        duration:
+          type: integer
+          description: "Durée en minutes"
+          example: 60
+        bandwidth:
+          type: object
+          properties:
+            download:
+              type: integer
+              description: "Mbps"
+            upload:
+              type: integer
+              description: "Mbps"
+        price:
+          type: number
+          format: decimal
+          example: 2.50
+        currency:
+          type: string
+          example: "EUR"
+        active:
+          type: boolean
+        routerId:
+          type: string
+          format: uuid
+
+    Ticket:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+          example: "ABC123XYZ"
+        offerId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [unused, active, expired, revoked]
+        activatedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        macAddress:
+          type: string
+          example: "AA:BB:CC:DD:EE:FF"
+
+    PaymentIntent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          format: decimal
+        currency:
+          type: string
+        status:
+          type: string
+          enum: [pending, processing, succeeded, failed, cancelled]
+        clientSecret:
+          type: string
+        metadata:
+          type: object
+        createdAt:
+          type: string
+          format: date-time
+
+    PortalTheme:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "Moderne Bleu"
+        category:
+          type: string
+          enum: [catalogue, custom]
+        colors:
+          type: object
+          properties:
+            primary:
+              type: string
+              example: "#3B82F6"
+            secondary:
+              type: string
+            background:
+              type: string
+        logo:
+          type: string
+          format: uri
+        customCss:
+          type: string
+        price:
+          type: number
+          format: decimal
+        merchantId:
+          type: string
+          format: uuid
+
+    Technician:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        firstName:
+          type: string
+        lastName:
+          type: string
+        certifications:
+          type: array
+          items:
+            type: string
+        kycStatus:
+          type: string
+          enum: [pending, verified, rejected]
+        kycDocuments:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                enum: [id_card, passport, certificate]
+              url:
+                type: string
+                format: uri
+              verified:
+                type: boolean
+        availableRegions:
+          type: array
+          items:
+            type: string
+        rating:
+          type: number
+          format: float
+          example: 4.8
+
+    Mission:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        technicianId:
+          type: string
+          format: uuid
+        routerId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [installation, maintenance, repair, upgrade]
+        status:
+          type: string
+          enum: [pending, assigned, in_progress, completed, cancelled]
+        scheduledAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        notes:
+          type: string
+
+    ShopProduct:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "MikroTik hAP ac2"
+        category:
+          type: string
+          enum: [router, accessory, antenna, cable]
+        sku:
+          type: string
+          example: "MTK-HAP-AC2"
+        price:
+          type: number
+          format: decimal
+        stock:
+          type: integer
+        specifications:
+          type: object
+        images:
+          type: array
+          items:
+            type: string
+            format: uri
+
+    ShopOrder:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        merchantId:
+          type: string
+          format: uuid
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              productId:
+                type: string
+                format: uuid
+              quantity:
+                type: integer
+              price:
+                type: number
+        total:
+          type: number
+        status:
+          type: string
+          enum: [pending, paid, shipped, delivered, cancelled]
+        trackingNumber:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+  responses:
+    BadRequest:
+      description: Requête invalide
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Bad Request"
+            message: "Validation failed"
+            statusCode: 400
+            details: ["email is required", "password must be at least 8 characters"]
+
+    Unauthorized:
+      description: Non authentifié
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Unauthorized"
+            message: "Invalid or missing JWT token"
+            statusCode: 401
+
+    Forbidden:
+      description: Accès interdit
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Forbidden"
+            message: "Insufficient permissions for this operation"
+            statusCode: 403
+
+    NotFound:
+      description: Ressource non trouvée
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Not Found"
+            message: "Resource not found"
+            statusCode: 404
+
+    InternalServerError:
+      description: Erreur serveur
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Internal Server Error"
+            message: "An unexpected error occurred"
+            statusCode: 500
+
 paths:
-  /health:
-    get:
-      summary: Health check
+  # ===== AUTH =====
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Créer un compte utilisateur
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - role
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                phone:
+                  type: string
+                role:
+                  type: string
+                  enum: [merchant, customer, technician]
+            example:
+              email: "merchant@example.com"
+              password: "SecurePass123!"
+              phone: "+33612345678"
+              role: "merchant"
+      responses:
+        '201':
+          description: Compte créé, OTP envoyé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userId:
+                    type: string
+                    format: uuid
+                  message:
+                    type: string
+                    example: "OTP sent to +336****5678"
+                  otpExpiresIn:
+                    type: integer
+                    example: 300
+        '400':
+          description: Données invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Email déjà utilisé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/verify-otp:
+    post:
+      tags: [Auth]
+      summary: Vérifier le code OTP
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+                - otp
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                otp:
+                  type: string
+                  example: "123456"
       responses:
         '200':
-          description: OK
+          description: OTP vérifié
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  verified:
+                    type: boolean
+                  message:
+                    type: string
+        '400':
+          description: OTP invalide ou expiré
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Se connecter
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+            example:
+              email: "merchant@example.com"
+              password: "SecurePass123!"
+      responses:
+        '200':
+          description: Connexion réussie
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                  refreshToken:
+                    type: string
+                  expiresIn:
+                    type: integer
+                    example: 3600
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Identifiants invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Obtenir le profil utilisateur connecté
+      responses:
+        '200':
+          description: Profil utilisateur
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Non authentifié
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Rafraîchir le token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Nouveau token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                  expiresIn:
+                    type: integer
+        '401':
+          description: Token invalide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ===== ROUTERS =====
+  /routers:
+    get:
+      tags: [Routers]
+      summary: Liste des routeurs
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [online, offline, provisioning, maintenance]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Liste des routeurs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Router'
+                  pagination:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
+                      total:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Routers]
+      summary: Créer un routeur
+      x-roles: [admin, merchant, technician]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - model
+                - serialNumber
+              properties:
+                name:
+                  type: string
+                model:
+                  type: string
+                serialNumber:
+                  type: string
+                location:
+                  type: object
+                  properties:
+                    latitude:
+                      type: number
+                    longitude:
+                      type: number
+                    address:
+                      type: string
+            example:
+              name: "Router-Cafe-Centre"
+              model: "MikroTik hAP ac2"
+              serialNumber: "ABC123456789"
+              location:
+                latitude: 48.8566
+                longitude: 2.3522
+                address: "123 Rue de Paris, 75001 Paris"
+      responses:
+        '201':
+          description: Routeur créé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Router'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Serial number déjà utilisé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /routers/{routerId}:
+    get:
+      tags: [Routers]
+      summary: Détails d'un routeur
+      parameters:
+        - name: routerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Détails du routeur
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Router'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /routers/{routerId}/provision:
+    post:
+      tags: [Routers]
+      summary: Provisionner un routeur (script RouterOS)
+      parameters:
+        - name: routerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - ipAddress
+                - adminPassword
+              properties:
+                ipAddress:
+                  type: string
+                  format: ipv4
+                adminPassword:
+                  type: string
+                wifiSsid:
+                  type: string
+                wifiPassword:
+                  type: string
+      responses:
+        '200':
+          description: Provisioning lancé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "provisioning"
+                  jobId:
+                    type: string
+                    format: uuid
+                  script:
+                    type: string
+                    description: "Script RouterOS généré"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /routers/{routerId}/health:
+    get:
+      tags: [Routers]
+      summary: Santé du routeur (ping, uptime, clients)
+      parameters:
+        - name: routerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Santé du routeur
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [online, offline]
+                  uptime:
+                    type: integer
+                    description: "Secondes"
+                  connectedClients:
+                    type: integer
+                  cpuUsage:
+                    type: number
+                    description: "Pourcentage"
+                  memoryUsage:
+                    type: number
+                  bandwidth:
+                    type: object
+                    properties:
+                      download:
+                        type: number
+                      upload:
+                        type: number
+                  lastChecked:
+                    type: string
+                    format: date-time
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ===== OFFERS =====
+  /offers:
+    get:
+      tags: [Offers]
+      summary: Liste des offres
+      parameters:
+        - name: routerId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Liste des offres
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Offer'
+
+    post:
+      tags: [Offers]
+      summary: Créer une offre
+      x-roles: [admin, merchant]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - duration
+                - price
+                - routerId
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                duration:
+                  type: integer
+                bandwidth:
+                  type: object
+                  properties:
+                    download:
+                      type: integer
+                    upload:
+                      type: integer
+                price:
+                  type: number
+                currency:
+                  type: string
+                  default: "EUR"
+                routerId:
+                  type: string
+                  format: uuid
+            example:
+              name: "2h WiFi Premium"
+              description: "Accès internet haut débit 2 heures"
+              duration: 120
+              bandwidth:
+                download: 50
+                upload: 10
+              price: 4.99
+              currency: "EUR"
+              routerId: "123e4567-e89b-12d3-a456-426614174000"
+      responses:
+        '201':
+          description: Offre créée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Offer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /offers/{offerId}:
+    get:
+      tags: [Offers]
+      summary: Détails d'une offre
+      parameters:
+        - name: offerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Détails de l'offre
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Offer'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Offers]
+      summary: Modifier une offre
+      parameters:
+        - name: offerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                price:
+                  type: number
+                active:
+                  type: boolean
+      responses:
+        '200':
+          description: Offre modifiée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Offer'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Offers]
+      summary: Supprimer une offre
+      parameters:
+        - name: offerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Offre supprimée
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ===== TICKETS =====
+  /tickets:
+    post:
+      tags: [Tickets]
+      summary: Créer un ticket (achat)
+      x-roles: [customer, merchant, admin]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - offerId
+                - paymentIntentId
+              properties:
+                offerId:
+                  type: string
+                  format: uuid
+                paymentIntentId:
+                  type: string
+                  format: uuid
+            example:
+              offerId: "123e4567-e89b-12d3-a456-426614174001"
+              paymentIntentId: "123e4567-e89b-12d3-a456-426614174002"
+      responses:
+        '201':
+          description: Ticket créé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /tickets/batch-preload:
+    post:
+      tags: [Tickets]
+      summary: Génération batch de tickets (prépayés)
+      x-roles: [admin, merchant]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - offerId
+                - quantity
+              properties:
+                offerId:
+                  type: string
+                  format: uuid
+                quantity:
+                  type: integer
+                  minimum: 1
+                  maximum: 1000
+                prefix:
+                  type: string
+                  example: "BATCH2024"
+            example:
+              offerId: "123e4567-e89b-12d3-a456-426614174001"
+              quantity: 100
+              prefix: "EVENT2024"
+      responses:
+        '201':
+          description: Batch créé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  batchId:
+                    type: string
+                    format: uuid
+                  tickets:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Ticket'
+                  downloadUrl:
+                    type: string
+                    format: uri
+                    description: "URL pour télécharger CSV/PDF"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /tickets/{ticketId}/validate:
+    post:
+      tags: [Tickets]
+      summary: Valider/activer un ticket
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+                - macAddress
+              properties:
+                code:
+                  type: string
+                macAddress:
+                  type: string
+            example:
+              code: "ABC123XYZ"
+              macAddress: "AA:BB:CC:DD:EE:FF"
+      responses:
+        '200':
+          description: Ticket validé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                  ticket:
+                    $ref: '#/components/schemas/Ticket'
+                  accessCredentials:
+                    type: object
+                    properties:
+                      username:
+                        type: string
+                      password:
+                        type: string
+        '400':
+          description: Ticket invalide/expiré
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ===== PAYMENTS =====
+  /payments/intents:
+    post:
+      tags: [Payments]
+      summary: Créer une intention de paiement
+      x-roles: [customer, merchant, admin]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - amount
+                - currency
+                - offerId
+              properties:
+                amount:
+                  type: number
+                  format: decimal
+                currency:
+                  type: string
+                  default: "EUR"
+                offerId:
+                  type: string
+                  format: uuid
+                metadata:
+                  type: object
+            example:
+              amount: 4.99
+              currency: "EUR"
+              offerId: "123e4567-e89b-12d3-a456-426614174001"
+              metadata:
+                customerEmail: "client@example.com"
+      responses:
+        '201':
+          description: Intention créée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentIntent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /payments/intents/{intentId}:
+    get:
+      tags: [Payments]
+      summary: Statut d'une intention de paiement
+      parameters:
+        - name: intentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Détails de l'intention
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentIntent'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /payments/webhooks:
+    post:
+      tags: [Payments]
+      summary: Webhook paiement (Stripe, PayPal, etc.)
+      description: |
+        Endpoint sécurisé pour recevoir les webhooks de paiement.
+        
+        **Validation HMAC requise:**
+        - Header `X-HMAC-Signature`: HMAC-SHA256(body, secret)
+        - Header `X-Timestamp`: Timestamp Unix pour prévenir replay attacks
+        
+        **Vérification:**
+        ```
+        expectedHmac = HMAC-SHA256(body + timestamp, webhookSecret)
+        if (X-HMAC-Signature !== expectedHmac) reject()
+        if (now - X-Timestamp > 300) reject() // 5min max
+        ```
+      security: []
+      parameters:
+        - name: X-HMAC-Signature
+          in: header
+          required: true
+          schema:
+            type: string
+          example: "a7f8d9e6c4b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a3f2e1d0c9b8a7f6"
+        - name: X-Timestamp
+          in: header
+          required: true
+          schema:
+            type: integer
+          example: 1698765432
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                eventType:
+                  type: string
+                  enum: [payment.succeeded, payment.failed, payment.refunded]
+                intentId:
+                  type: string
+                  format: uuid
+                amount:
+                  type: number
+                status:
+                  type: string
+                timestamp:
+                  type: string
+                  format: date-time
+            example:
+              eventType: "payment.succeeded"
+              intentId: "123e4567-e89b-12d3-a456-426614174002"
+              amount: 4.99
+              status: "succeeded"
+              timestamp: "2025-10-24T16:30:00Z"
+      responses:
+        '200':
+          description: Webhook traité
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  received:
+                    type: boolean
+                  processedAt:
+                    type: string
+                    format: date-time
+        '400':
+          description: HMAC invalide ou timestamp expiré
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ===== PORTAL THEMES =====
+  /portal-themes/catalogue:
+    get:
+      tags: [Portal Themes]
+      summary: Catalogue de thèmes prédéfinis
+      responses:
+        '200':
+          description: Liste des thèmes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PortalTheme'
+
+  /portal-themes:
+    post:
+      tags: [Portal Themes]
+      summary: Acheter/créer un thème personnalisé
+      x-roles: [admin, merchant]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - category
+              properties:
+                name:
+                  type: string
+                category:
+                  type: string
+                  enum: [catalogue, custom]
+                catalogueThemeId:
+                  type: string
+                  format: uuid
+                  description: "Si category=catalogue"
+                colors:
+                  type: object
+                  properties:
+                    primary:
+                      type: string
+                    secondary:
+                      type: string
+                    background:
+                      type: string
+                logo:
+                  type: string
+                  format: uri
+                customCss:
+                  type: string
+            example:
+              name: "Mon Thème Custom"
+              category: "custom"
+              colors:
+                primary: "#FF6B6B"
+                secondary: "#4ECDC4"
+                background: "#F7FFF7"
+              logo: "https://cdn.example.com/logo.png"
+      responses:
+        '201':
+          description: Thème créé/acheté
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortalTheme'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /portal-themes/{themeId}/deploy:
+    post:
+      tags: [Portal Themes]
+      summary: Déployer un thème sur un routeur
+      parameters:
+        - name: themeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - routerId
+              properties:
+                routerId:
+                  type: string
+                  format: uuid
+            example:
+              routerId: "123e4567-e89b-12d3-a456-426614174000"
+      responses:
+        '200':
+          description: Déploiement lancé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "deploying"
+                  deploymentId:
+                    type: string
+                    format: uuid
+                  estimatedTime:
+                    type: integer
+                    description: "Secondes"
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ===== TECHNICIANS =====
+  /technicians/register:
+    post:
+      tags: [Technicians]
+      summary: Inscription technicien
+      x-roles: [technician]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+                - firstName
+                - lastName
+                - certifications
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                firstName:
+                  type: string
+                lastName:
+                  type: string
+                certifications:
+                  type: array
+                  items:
+                    type: string
+                availableRegions:
+                  type: array
+                  items:
+                    type: string
+            example:
+              userId: "123e4567-e89b-12d3-a456-426614174003"
+              firstName: "Jean"
+              lastName: "Dupont"
+              certifications: ["MikroTik MTCNA", "Cisco CCNA"]
+              availableRegions: ["Île-de-France", "Normandie"]
+      responses:
+        '201':
+          description: Technicien inscrit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Technician'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /technicians/{technicianId}/kyc:
+    post:
+      tags: [Technicians]
+      summary: Soumettre documents KYC
+      parameters:
+        - name: technicianId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - documentType
+                - file
+              properties:
+                documentType:
+                  type: string
+                  enum: [id_card, passport, certificate]
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Document soumis
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documentId:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    example: "pending_review"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /technicians/missions:
+    get:
+      tags: [Technicians]
+      summary: Liste des missions
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, assigned, in_progress, completed]
+        - name: technicianId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Liste des missions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Mission'
+
+    post:
+      tags: [Technicians]
+      summary: Créer une mission
+      x-roles: [admin, merchant]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - routerId
+                - type
+                - scheduledAt
+              properties:
+                routerId:
+                  type: string
+                  format: uuid
+                type:
+                  type: string
+                  enum: [installation, maintenance, repair, upgrade]
+                scheduledAt:
+                  type: string
+                  format: date-time
+                notes:
+                  type: string
+            example:
+              routerId: "123e4567-e89b-12d3-a456-426614174000"
+              type: "installation"
+              scheduledAt: "2025-10-25T14:00:00Z"
+              notes: "Installation dans un café, accès par l'arrière"
+      responses:
+        '201':
+          description: Mission créée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Mission'
+
+  /technicians/missions/{missionId}/assign:
+    post:
+      tags: [Technicians]
+      summary: Assigner un technicien à une mission
+      parameters:
+        - name: missionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - technicianId
+              properties:
+                technicianId:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Technicien assigné
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Mission'
+
+  # ===== SHOP =====
+  /shop/products:
+    get:
+      tags: [Shop]
+      summary: Inventaire boutique
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [router, accessory, antenna, cable]
+        - name: inStock
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Liste des produits
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ShopProduct'
+
+  /shop/products/{productId}:
+    get:
+      tags: [Shop]
+      summary: Détails d'un produit
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Détails du produit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShopProduct'
+
+  /shop/orders:
+    post:
+      tags: [Shop]
+      summary: Créer une commande
+      x-roles: [merchant, admin]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - items
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - productId
+                      - quantity
+                    properties:
+                      productId:
+                        type: string
+                        format: uuid
+                      quantity:
+                        type: integer
+                        minimum: 1
+            example:
+              items:
+                - productId: "123e4567-e89b-12d3-a456-426614174004"
+                  quantity: 2
+                - productId: "123e4567-e89b-12d3-a456-426614174005"
+                  quantity: 1
+      responses:
+        '201':
+          description: Commande créée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShopOrder'
+
+  /shop/orders/{orderId}/activate:
+    post:
+      tags: [Shop]
+      summary: Activer un produit (enregistrement SN)
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - productId
+                - serialNumber
+              properties:
+                productId:
+                  type: string
+                  format: uuid
+                serialNumber:
+                  type: string
+            example:
+              productId: "123e4567-e89b-12d3-a456-426614174004"
+              serialNumber: "SN-ROUTER-2024-001234"
+      responses:
+        '200':
+          description: Produit activé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  activated:
+                    type: boolean
+                  serialNumber:
+                    type: string
+                  activatedAt:
+                    type: string
+                    format: date-time
+                  warranty:
+                    type: object
+                    properties:
+                      expiresAt:
+                        type: string
+                        format: date-time
+                      coverageType:
+                        type: string
+
+  # ===== HEALTH =====
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check API
+      security: []
+      responses:
+        '200':
+          description: API opérationnelle
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+                  ts:
+                    type: string
+                    format: date-time

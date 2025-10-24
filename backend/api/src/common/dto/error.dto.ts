@@ -1,6 +1,6 @@
 export class ErrorDto {
-  error: string;
-  message: string;
-  statusCode: number;
+  error!: string;
+  message!: string;
+  statusCode!: number;
   details?: string[];
 }

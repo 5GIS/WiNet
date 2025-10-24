@@ -9,15 +9,47 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
+const core_1 = require("@nestjs/core");
 const app_controller_1 = require("./app.controller");
 const app_service_1 = require("./app.service");
+const auth_module_1 = require("./auth/auth.module");
+const routers_module_1 = require("./routers/routers.module");
+const offers_module_1 = require("./offers/offers.module");
+const tickets_module_1 = require("./tickets/tickets.module");
+const payments_module_1 = require("./payments/payments.module");
+const themes_module_1 = require("./themes/themes.module");
+const technicians_module_1 = require("./technicians/technicians.module");
+const shop_module_1 = require("./shop/shop.module");
+const idempotency_middleware_1 = require("../common/middleware/idempotency.middleware");
+const logger_interceptor_1 = require("../common/interceptors/logger.interceptor");
 let AppModule = class AppModule {
+    configure(consumer) {
+        consumer
+            .apply(idempotency_middleware_1.IdempotencyMiddleware)
+            .forRoutes('*');
+    }
 };
 exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
-        imports: [config_1.ConfigModule.forRoot({ isGlobal: true })],
+        imports: [
+            config_1.ConfigModule.forRoot({ isGlobal: true }),
+            auth_module_1.AuthModule,
+            routers_module_1.RoutersModule,
+            offers_module_1.OffersModule,
+            tickets_module_1.TicketsModule,
+            payments_module_1.PaymentsModule,
+            themes_module_1.ThemesModule,
+            technicians_module_1.TechniciansModule,
+            shop_module_1.ShopModule,
+        ],
         controllers: [app_controller_1.AppController],
-        providers: [app_service_1.AppService],
+        providers: [
+            app_service_1.AppService,
+            {
+                provide: core_1.APP_INTERCEPTOR,
+                useClass: logger_interceptor_1.LoggerInterceptor,
+            },
+        ],
     })
 ], AppModule);

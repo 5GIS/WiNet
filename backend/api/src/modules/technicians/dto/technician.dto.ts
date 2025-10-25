@@ -71,6 +71,10 @@ export class SubmitKycResponseDto {
 }
 
 export class CreateMissionDto {
+  @IsOptional()
+  @IsUUID()
+  technicianId?: string;
+
   @IsUUID()
   routerId: string;
 
@@ -79,6 +83,10 @@ export class CreateMissionDto {
 
   @IsString()
   scheduledAt: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
 
   @IsOptional()
   @IsString()

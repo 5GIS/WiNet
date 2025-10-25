@@ -44,8 +44,10 @@ export class RoutersService {
     return this.toRouterDto(router);
   }
 
-  async create(dto: CreateRouterDto): Promise<RouterDto & { installToken?: string }> {
-    const adminSecretHash = await bcrypt.hash('admin', 10);
+  async create(dto: CreateRouterDto): Promise<RouterDto & { installToken?: string; adminSecret?: string }> {
+    const crypto = require('crypto');
+    const adminSecret = crypto.randomBytes(16).toString('hex');
+    const adminSecretHash = await bcrypt.hash(adminSecret, 10);
     const installToken = randomUUID();
 
     const router = await this.prisma.router.create({
@@ -61,6 +63,7 @@ export class RoutersService {
     return {
       ...this.toRouterDto(router),
       installToken,
+      adminSecret,
     };
   }
 

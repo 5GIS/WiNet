@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { RegisterTechnicianDto, TechnicianDto, SubmitKycResponseDto, CreateMissionDto, MissionDto, AssignMissionDto, KycStatus, MissionStatus } from './dto/technician.dto';
 import { randomUUID } from 'crypto';
@@ -83,22 +83,24 @@ export class TechniciansService {
   }
 
   async createMission(dto: CreateMissionDto): Promise<MissionDto> {
-    // Validate technician exists
     if (dto.technicianId) {
       const techExists = await this.prisma.technician.findUnique({
         where: { id: dto.technicianId },
       });
       if (!techExists) {
-        throw new Error(`Technician ${dto.technicianId} not found`);
+        throw new NotFoundException(`Technician ${dto.technicianId} not found`);
       }
     }
 
-    // Validate router exists
     const routerExists = await this.prisma.router.findUnique({
       where: { id: dto.routerId },
     });
     if (!routerExists) {
-      throw new Error(`Router ${dto.routerId} not found`);
+      throw new NotFoundException(`Router ${dto.routerId} not found`);
+    }
+
+    if (!dto.technicianId) {
+      throw new BadRequestException('technicianId is required - use assignMission to assign later if needed');
     }
 
     const mission = await this.prisma.mission.create({

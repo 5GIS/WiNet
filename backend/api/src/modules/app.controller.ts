@@ -63,7 +63,10 @@ export class AppController {
 
     const adminPasswordHash = await bcrypt.hash('admin123', 10);
     const managerPasswordHash = await bcrypt.hash('manager123', 10);
-    const routerSecretHash = await bcrypt.hash('admin', 10);
+    
+    const crypto = require('crypto');
+    const routerAdminSecret = crypto.randomBytes(16).toString('hex');
+    const routerSecretHash = await bcrypt.hash(routerAdminSecret, 10);
 
     const admin = await this.prisma.user.upsert({
       where: { email: 'admin@winet.demo' },
@@ -163,6 +166,7 @@ export class AppController {
         offers: [offer1h.name, offer24h.name],
         themes: [freeTheme.name, premiumTheme.name],
       },
+      routerAdminSecret,
     };
   }
 }

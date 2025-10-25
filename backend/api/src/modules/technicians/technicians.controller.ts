@@ -41,4 +41,9 @@ export class TechniciansController {
   ): Promise<MissionDto> {
     return this.techniciansService.assignMission(id, dto);
   }
+
+  @Post('complete/:missionId')
+  async completeMission(@Param('missionId') missionId: string): Promise<MissionDto> {
+    return this.techniciansService.completeMission(missionId);
+  }
 }

@@ -50,6 +50,12 @@ enum KycStatus {
   REJECTED
 }
 
+enum MissionStatus {
+  ASSIGNED
+  IN_PROGRESS
+  DONE
+}
+
 model User {
   id           String       @id @default(uuid())
   email        String       @unique
@@ -67,6 +73,8 @@ model Router {
   ssid            String
   adminSecretHash String
   fqdnOrIp        String?
+  installToken    String?      @unique
+  scriptPath      String?
   status          RouterStatus @default(NEW)
   createdAt       DateTime     @default(now())
   lastSeenAt      DateTime?
@@ -106,7 +114,11 @@ model Payment {
   status         PaymentStatus @default(PENDING)
   idempotencyKey String        @unique
   providerRef    String?
+  phoneNumber    String?
+  provider       String?
+  metadata       String?
   createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 }
 
 model Theme {
@@ -121,7 +133,21 @@ model Technician {
   id        String    @id @default(uuid())
   userId    String    @unique
   kycStatus KycStatus @default(PENDING)
+  kycDocument String?
   createdAt DateTime  @default(now())
   
   user      User      @relation(fields: [userId], references: [id])
+  missions  Mission[]
+}
+
+model Mission {
+  id            String        @id @default(uuid())
+  technicianId  String
+  routerId      String
+  status        MissionStatus @default(ASSIGNED)
+  description   String?
+  createdAt     DateTime      @default(now())
+  completedAt   DateTime?
+  
+  technician    Technician    @relation(fields: [technicianId], references: [id])
 }

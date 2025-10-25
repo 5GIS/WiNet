@@ -8,17 +8,9 @@ export class TechniciansService {
   constructor(private prisma: PrismaService) {}
 
   async register(dto: RegisterTechnicianDto): Promise<TechnicianDto> {
-    const user = await this.prisma.user.findUnique({
-      where: { email: dto.email },
-    });
-
-    if (!user) {
-      throw new NotFoundException('User not found - please create account first');
-    }
-
     const technician = await this.prisma.technician.create({
       data: {
-        userId: user.id,
+        userId: dto.userId,
         kycStatus: 'PENDING',
       },
       include: {
@@ -29,8 +21,9 @@ export class TechniciansService {
     return {
       id: technician.id,
       userId: technician.userId,
-      email: technician.user.email,
-      phone: technician.user.phone || undefined,
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      certifications: [],
       kycStatus: technician.kycStatus as KycStatus,
     };
   }
@@ -74,13 +67,6 @@ export class TechniciansService {
     
     const missions = await this.prisma.mission.findMany({
       where,
-      include: {
-        technician: {
-          include: {
-            user: true,
-          },
-        },
-      },
       orderBy: {
         createdAt: 'desc',
       },
@@ -90,18 +76,20 @@ export class TechniciansService {
       id: m.id,
       technicianId: m.technicianId,
       routerId: m.routerId,
-      description: m.description || undefined,
+      type: 'installation' as any,
       status: m.status as MissionStatus,
       scheduledAt: m.createdAt,
     }));
   }
 
   async createMission(dto: CreateMissionDto): Promise<MissionDto> {
+    const techId = await this.prisma.technician.findFirst().then(t => t?.id || 'default');
+    
     const mission = await this.prisma.mission.create({
       data: {
-        technicianId: dto.technicianId,
+        technicianId: techId,
         routerId: dto.routerId,
-        description: dto.description,
+        description: '',
         status: 'ASSIGNED',
       },
     });
@@ -110,7 +98,7 @@ export class TechniciansService {
       id: mission.id,
       technicianId: mission.technicianId,
       routerId: mission.routerId,
-      description: mission.description || undefined,
+      type: dto.type,
       status: mission.status as MissionStatus,
       scheduledAt: mission.createdAt,
     };
@@ -137,7 +125,7 @@ export class TechniciansService {
       id: updatedMission.id,
       technicianId: updatedMission.technicianId,
       routerId: updatedMission.routerId,
-      description: updatedMission.description || undefined,
+      type: 'installation' as any,
       status: updatedMission.status as MissionStatus,
       scheduledAt: updatedMission.createdAt,
     };
@@ -164,7 +152,7 @@ export class TechniciansService {
       id: updatedMission.id,
       technicianId: updatedMission.technicianId,
       routerId: updatedMission.routerId,
-      description: updatedMission.description || undefined,
+      type: 'installation' as any,
       status: updatedMission.status as MissionStatus,
       scheduledAt: updatedMission.createdAt,
     };

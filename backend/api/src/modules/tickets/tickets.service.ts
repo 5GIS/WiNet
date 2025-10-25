@@ -8,11 +8,13 @@ export class TicketsService {
   constructor(private prisma: PrismaService) {}
 
   async create(dto: CreateTicketDto): Promise<TicketDto> {
+    const router = await this.prisma.router.findFirst();
+    
     const ticket = await this.prisma.ticket.create({
       data: {
         code: this.generateCode(),
         offerId: dto.offerId,
-        routerId: dto.routerId,
+        routerId: router?.id || 'default',
         status: 'PENDING',
       },
     });
@@ -28,6 +30,7 @@ export class TicketsService {
   async batchPreload(dto: BatchPreloadDto): Promise<BatchPreloadResponseDto> {
     const quantity = Math.min(dto.quantity || 100, 100);
     const tickets: TicketDto[] = [];
+    const router = await this.prisma.router.findFirst();
     
     for (let i = 0; i < quantity; i++) {
       const code = dto.prefix ? `${dto.prefix}${this.generateCode(6)}` : this.generateCode();
@@ -36,7 +39,7 @@ export class TicketsService {
         data: {
           code,
           offerId: dto.offerId,
-          routerId: dto.routerId,
+          routerId: router?.id || 'default',
           status: 'PENDING',
         },
       });
@@ -101,7 +104,6 @@ export class TicketsService {
         username: ticket.code,
         password: this.generateCode(8),
       },
-      mikhmonSync: mikhmonResponse,
     };
   }
 

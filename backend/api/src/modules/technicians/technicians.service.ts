@@ -100,7 +100,7 @@ export class TechniciansService {
     }
 
     if (!dto.technicianId) {
-      throw new BadRequestException('technicianId is required - use assignMission to assign later if needed');
+      throw new BadRequestException('technicianId is required');
     }
 
     const mission = await this.prisma.mission.create({
@@ -123,10 +123,16 @@ export class TechniciansService {
   }
 
   async assignMission(missionId: string, dto: AssignMissionDto): Promise<MissionDto> {
+    const techExists = await this.prisma.technician.findUnique({
+      where: { id: dto.technicianId },
+    });
+    if (!techExists) {
+      throw new NotFoundException(`Technician ${dto.technicianId} not found`);
+    }
+
     const mission = await this.prisma.mission.findUnique({
       where: { id: missionId },
     });
-
     if (!mission) {
       throw new NotFoundException('Mission not found');
     }

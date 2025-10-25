@@ -71,9 +71,8 @@ export class SubmitKycResponseDto {
 }
 
 export class CreateMissionDto {
-  @IsOptional()
   @IsUUID()
-  technicianId?: string;
+  technicianId: string;
 
   @IsUUID()
   routerId: string;

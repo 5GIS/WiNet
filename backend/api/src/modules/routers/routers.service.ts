@@ -44,19 +44,24 @@ export class RoutersService {
     return this.toRouterDto(router);
   }
 
-  async create(dto: CreateRouterDto): Promise<RouterDto> {
+  async create(dto: CreateRouterDto): Promise<RouterDto & { installToken?: string }> {
     const adminSecretHash = await bcrypt.hash('admin', 10);
+    const installToken = randomUUID();
 
     const router = await this.prisma.router.create({
       data: {
         serialNumber: dto.serialNumber,
         ssid: `${dto.name}-WiFi`,
         adminSecretHash,
-        status: 'OFFLINE',
+        installToken,
+        status: 'NEW',
       },
     });
 
-    return this.toRouterDto(router);
+    return {
+      ...this.toRouterDto(router),
+      installToken,
+    };
   }
 
   async provision(id: string, dto: ProvisionRouterDto): Promise<ProvisionResponseDto> {
@@ -111,10 +116,28 @@ export class RoutersService {
 
   private generateRouterScript(dto: ProvisionRouterDto): string {
     return `
+# WiNet RouterOS Provisioning Script
+# IP Address: ${dto.ipAddress}
+# SSID: ${dto.wifiSsid || 'WiNet-WiFi'}
+
 /system identity set name=WiNet-Router
+
+# Configure IP Address
 /ip address add address=${dto.ipAddress}/24 interface=ether1
-/interface wireless security-profiles add name=winet-profile mode=wpa2-psk wpa2-pre-shared-key=${dto.wifiPassword || 'changeme'}
-/interface wireless set wlan1 ssid="${dto.wifiSsid || 'WiNet-WiFi'}" security-profile=winet-profile
+
+# Configure Wireless (if available)
+/interface wireless security-profiles add name=winet-profile mode=wpa2-psk wpa2-pre-shared-key="${dto.wifiPassword || 'changeme'}"
+/interface wireless set wlan1 ssid="${dto.wifiSsid || 'WiNet-WiFi'}" security-profile=winet-profile disabled=no
+
+# Configure Hotspot
+/ip pool add name=hotspot-pool ranges=10.5.50.2-10.5.50.254
+/ip hotspot profile add dns-name="winet.local" name=winet-profile hotspot-address=10.5.50.1
+/ip hotspot add address-pool=hotspot-pool interface=ether2 name=winet-hotspot profile=winet-profile
+
+# Enable API for management
+/ip service set api address=0.0.0.0/0 disabled=no
+
+:log info "WiNet provisioning completed"
     `.trim();
   }
 

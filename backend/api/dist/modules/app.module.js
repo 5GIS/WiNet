@@ -20,6 +20,7 @@ const payments_module_1 = require("./payments/payments.module");
 const themes_module_1 = require("./themes/themes.module");
 const technicians_module_1 = require("./technicians/technicians.module");
 const shop_module_1 = require("./shop/shop.module");
+const scripts_module_1 = require("./scripts/scripts.module");
 const idempotency_middleware_1 = require("../common/middleware/idempotency.middleware");
 const logger_interceptor_1 = require("../common/interceptors/logger.interceptor");
 const prisma_service_1 = require("../common/prisma.service");
@@ -43,6 +44,7 @@ exports.AppModule = AppModule = __decorate([
             themes_module_1.ThemesModule,
             technicians_module_1.TechniciansModule,
             shop_module_1.ShopModule,
+            scripts_module_1.ScriptsModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [

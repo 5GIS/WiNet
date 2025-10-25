@@ -11,6 +11,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { ThemesModule } from './themes/themes.module';
 import { TechniciansModule } from './technicians/technicians.module';
 import { ShopModule } from './shop/shop.module';
+import { ScriptsModule } from './scripts/scripts.module';
 import { IdempotencyMiddleware } from '../common/middleware/idempotency.middleware';
 import { LoggerInterceptor } from '../common/interceptors/logger.interceptor';
 import { PrismaService } from '../common/prisma.service';
@@ -26,6 +27,7 @@ import { PrismaService } from '../common/prisma.service';
     ThemesModule,
     TechniciansModule,
     ShopModule,
+    ScriptsModule,
   ],
   controllers: [AppController],
   providers: [

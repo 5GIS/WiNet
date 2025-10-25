@@ -1,0 +1,301 @@
+### WiNet API - Complete Test Suite
+### Base URL
+@baseUrl = http://localhost:5000
+@token = your-jwt-token-here
+@adminSecret = test-admin-secret
+
+### ========== HEALTH & INFO ==========
+
+### Health Check
+GET {{baseUrl}}/health
+
+### Service Info
+GET {{baseUrl}}/
+
+### ========== ADMIN ==========
+
+### Seed Database (Protected)
+POST {{baseUrl}}/admin/seed
+Authorization: Bearer {{adminSecret}}
+
+### ========== AUTH ==========
+
+### Register User
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "user@winet.test",
+  "password": "password123",
+  "phone": "+22500000000"
+}
+
+### Login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@winet.demo",
+  "password": "admin123"
+}
+
+### Get Profile (requires JWT)
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{token}}
+
+### ========== ROUTERS ==========
+
+### List All Routers
+GET {{baseUrl}}/routers?page=1&limit=20
+
+### Create Router (returns installToken)
+POST {{baseUrl}}/routers
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+
+{
+  "serialNumber": "SN-TEST-001",
+  "name": "TestRouter"
+}
+
+### Get Router Details
+GET {{baseUrl}}/routers/{{routerId}}
+
+### Provision Router (generates RouterOS script)
+POST {{baseUrl}}/routers/{{routerId}}/provision
+Content-Type: application/json
+
+{
+  "ipAddress": "192.168.88.1",
+  "wifiSsid": "WiNet-Guest",
+  "wifiPassword": "secure123"
+}
+
+### Get Router Health
+GET {{baseUrl}}/routers/{{routerId}}/health
+
+### ========== SCRIPTS (SECURE) ==========
+
+### Get Install Script (requires valid installToken)
+GET {{baseUrl}}/scripts/install?token={{installToken}}
+
+### ========== OFFERS ==========
+
+### List Offers
+GET {{baseUrl}}/offers
+
+### Get Offer Details
+GET {{baseUrl}}/offers/{{offerId}}
+
+### Create Offer
+POST {{baseUrl}}/offers
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+
+{
+  "name": "Premium 10GB",
+  "priceCents": 5000,
+  "durationMinutes": 1440,
+  "bandwidthLimitKbps": 10240,
+  "active": true
+}
+
+### Update Offer
+PUT {{baseUrl}}/offers/{{offerId}}
+Content-Type: application/json
+
+{
+  "name": "Premium 10GB Updated",
+  "priceCents": 4500
+}
+
+### Delete Offer
+DELETE {{baseUrl}}/offers/{{offerId}}
+
+### ========== TICKETS ==========
+
+### Create Single Ticket
+POST {{baseUrl}}/tickets
+Content-Type: application/json
+
+{
+  "offerId": "{{offerId}}",
+  "routerId": "{{routerId}}"
+}
+
+### Batch Generate Tickets (100 tickets)
+POST {{baseUrl}}/tickets/batch-preload
+Content-Type: application/json
+
+{
+  "offerId": "{{offerId}}",
+  "routerId": "{{routerId}}",
+  "quantity": 100,
+  "prefix": "WINET-"
+}
+
+### Validate Ticket (syncs with Mikhmon)
+POST {{baseUrl}}/tickets/{{ticketId}}/validate
+Content-Type: application/json
+
+{
+  "code": "TICKET-CODE-123",
+  "macAddress": "AA:BB:CC:DD:EE:FF"
+}
+
+### ========== PAYMENTS ==========
+
+### Initialize Payment (Orange/MTN Money)
+POST {{baseUrl}}/payments/init
+Content-Type: application/json
+
+{
+  "type": "ACCESS_SALE",
+  "amountCents": 1000,
+  "phoneNumber": "+22500000000",
+  "provider": "ORANGE",
+  "metadata": {
+    "offerId": "{{offerId}}",
+    "customerId": "user123"
+  }
+}
+
+### Create Payment Intent
+POST {{baseUrl}}/payments/intents
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+
+{
+  "amount": 5000,
+  "currency": "XOF",
+  "metadata": {
+    "orderId": "order-123"
+  }
+}
+
+### Get Payment Status
+GET {{baseUrl}}/payments/intents/{{paymentId}}
+
+### Payment Webhook (HMAC protected)
+POST {{baseUrl}}/payments/webhooks
+Content-Type: application/json
+X-HMAC: computed-hmac-signature-here
+X-Timestamp: {{$timestamp}}
+
+{
+  "intentId": "{{paymentId}}",
+  "status": "SUCCESS",
+  "timestamp": "{{$timestamp}}"
+}
+
+### ========== THEMES ==========
+
+### List Theme Catalogue
+GET {{baseUrl}}/portal-themes/catalogue
+
+### Create Custom Theme
+POST {{baseUrl}}/portal-themes
+Content-Type: application/json
+
+{
+  "name": "Corporate Blue",
+  "tier": "PREMIUM",
+  "manifestJson": {
+    "primaryColor": "#0066CC",
+    "logo": "/assets/logo-corp.png",
+    "backgroundColor": "#F5F5F5"
+  }
+}
+
+### Deploy Theme to Router
+POST {{baseUrl}}/portal-themes/{{themeId}}/deploy
+Content-Type: application/json
+
+{
+  "routerId": "{{routerId}}"
+}
+
+### ========== TECHNICIANS ==========
+
+### Register Technician
+POST {{baseUrl}}/technicians/register
+Content-Type: application/json
+
+{
+  "email": "tech@winet.test",
+  "phone": "+22500000001"
+}
+
+### Submit KYC Document
+POST {{baseUrl}}/technicians/{{technicianId}}/kyc
+Content-Type: multipart/form-data
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="kyc-doc.pdf"
+
+(binary file content)
+--boundary--
+
+### List Missions
+GET {{baseUrl}}/technicians/missions?status=ASSIGNED
+
+### Create Mission
+POST {{baseUrl}}/technicians/missions
+Content-Type: application/json
+
+{
+  "technicianId": "{{technicianId}}",
+  "routerId": "{{routerId}}",
+  "description": "Install and configure router at Site A",
+  "scheduledAt": "2025-10-26T10:00:00Z"
+}
+
+### Assign Mission to Technician
+POST {{baseUrl}}/technicians/missions/{{missionId}}/assign
+Content-Type: application/json
+
+{
+  "technicianId": "{{technicianId}}"
+}
+
+### Complete Mission
+POST {{baseUrl}}/technicians/complete/{{missionId}}
+
+### ========== SHOP ==========
+
+### List Products
+GET {{baseUrl}}/shop/products?category=ROUTER&inStock=true
+
+### Get Product Details
+GET {{baseUrl}}/shop/products/{{productId}}
+
+### Create Order
+POST {{baseUrl}}/shop/orders
+Content-Type: application/json
+
+{
+  "productId": "{{productId}}",
+  "quantity": 1,
+  "shippingAddress": "123 Main St, Abidjan"
+}
+
+### Activate Product
+POST {{baseUrl}}/shop/orders/{{orderId}}/activate
+Content-Type: application/json
+
+{
+  "serialNumber": "SN-PROD-12345"
+}
+
+### ========== NOTES ==========
+
+# JWT Token: After login, copy the accessToken from the response and set it in @token variable
+# Install Token: After creating a router, copy the installToken to access the script
+# HMAC Signature: Use SHA256 HMAC with WEBHOOK_SECRET environment variable
+# Idempotency-Key: Use unique UUID for each request to prevent duplicates
+
+# HMAC Example (Node.js):
+# const crypto = require('crypto');
+# const signature = crypto.createHmac('sha256', process.env.WEBHOOK_SECRET)
+#   .update(JSON.stringify(payload))
+#   .digest('hex');

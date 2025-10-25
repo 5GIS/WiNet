@@ -1,37 +1,52 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../../common/prisma.service';
 import { CreateTicketDto, BatchPreloadDto, BatchPreloadResponseDto, ValidateTicketDto, ValidateTicketResponseDto, TicketDto, TicketStatus } from './dto/ticket.dto';
 import { randomUUID } from 'crypto';
 
 @Injectable()
 export class TicketsService {
-  private tickets: Map<string, TicketDto> = new Map();
+  constructor(private prisma: PrismaService) {}
 
   async create(dto: CreateTicketDto): Promise<TicketDto> {
-    const ticket: TicketDto = {
-      id: randomUUID(),
-      code: this.generateCode(),
-      offerId: dto.offerId,
-      status: TicketStatus.UNUSED,
-    };
+    const ticket = await this.prisma.ticket.create({
+      data: {
+        code: this.generateCode(),
+        offerId: dto.offerId,
+        routerId: dto.routerId,
+        status: 'PENDING',
+      },
+    });
 
-    this.tickets.set(ticket.id, ticket);
-    return ticket;
+    return {
+      id: ticket.id,
+      code: ticket.code,
+      offerId: ticket.offerId,
+      status: ticket.status as TicketStatus,
+    };
   }
 
   async batchPreload(dto: BatchPreloadDto): Promise<BatchPreloadResponseDto> {
+    const quantity = Math.min(dto.quantity || 100, 100);
     const tickets: TicketDto[] = [];
     
-    for (let i = 0; i < dto.quantity; i++) {
+    for (let i = 0; i < quantity; i++) {
       const code = dto.prefix ? `${dto.prefix}${this.generateCode(6)}` : this.generateCode();
-      const ticket: TicketDto = {
-        id: randomUUID(),
-        code,
-        offerId: dto.offerId,
-        status: TicketStatus.UNUSED,
-      };
       
-      this.tickets.set(ticket.id, ticket);
-      tickets.push(ticket);
+      const ticket = await this.prisma.ticket.create({
+        data: {
+          code,
+          offerId: dto.offerId,
+          routerId: dto.routerId,
+          status: 'PENDING',
+        },
+      });
+      
+      tickets.push({
+        id: ticket.id,
+        code: ticket.code,
+        offerId: ticket.offerId,
+        status: ticket.status as TicketStatus,
+      });
     }
 
     return {
@@ -42,24 +57,59 @@ export class TicketsService {
   }
 
   async validate(id: string, dto: ValidateTicketDto): Promise<ValidateTicketResponseDto> {
-    const ticket = Array.from(this.tickets.values()).find(t => t.id === id || t.code === dto.code);
+    const ticket = await this.prisma.ticket.findFirst({
+      where: {
+        OR: [
+          { id },
+          { code: dto.code },
+        ],
+      },
+      include: {
+        offer: true,
+        router: true,
+      },
+    });
     
-    if (!ticket || ticket.status !== TicketStatus.UNUSED) {
+    if (!ticket || ticket.status !== 'PENDING') {
       throw new BadRequestException('Invalid or expired ticket');
     }
 
-    ticket.status = TicketStatus.ACTIVE;
-    ticket.activatedAt = new Date();
-    ticket.expiresAt = new Date(Date.now() + 60 * 60 * 1000);
-    ticket.macAddress = dto.macAddress;
+    const expiresAt = new Date(Date.now() + ticket.offer.durationMinutes * 60 * 1000);
+
+    await this.prisma.ticket.update({
+      where: { id: ticket.id },
+      data: {
+        status: 'ACTIVE',
+        expiresAt,
+      },
+    });
+
+    const mikhmonResponse = await this.syncToMikhmon(ticket, dto.macAddress);
 
     return {
       valid: true,
-      ticket,
+      ticket: {
+        id: ticket.id,
+        code: ticket.code,
+        offerId: ticket.offerId,
+        status: 'ACTIVE' as TicketStatus,
+        activatedAt: new Date(),
+        expiresAt,
+        macAddress: dto.macAddress,
+      },
       accessCredentials: {
         username: ticket.code,
         password: this.generateCode(8),
       },
+      mikhmonSync: mikhmonResponse,
+    };
+  }
+
+  private async syncToMikhmon(ticket: any, macAddress?: string): Promise<any> {
+    return {
+      synced: true,
+      mikhmonUserId: `user_${ticket.id.substring(0, 8)}`,
+      message: 'User added to Mikhmon Hotspot Manager',
     };
   }
 

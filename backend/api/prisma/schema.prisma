@@ -80,6 +80,7 @@ model Router {
   lastSeenAt      DateTime?
   
   tickets         Ticket[]
+  missions        Mission[]
 }
 
 model Offer {
@@ -150,4 +151,5 @@ model Mission {
   completedAt   DateTime?
   
   technician    Technician    @relation(fields: [technicianId], references: [id])
+  router        Router        @relation(fields: [routerId], references: [id])
 }

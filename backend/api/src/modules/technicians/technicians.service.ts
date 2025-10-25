@@ -83,13 +83,29 @@ export class TechniciansService {
   }
 
   async createMission(dto: CreateMissionDto): Promise<MissionDto> {
-    const techId = await this.prisma.technician.findFirst().then(t => t?.id || 'default');
-    
+    // Validate technician exists
+    if (dto.technicianId) {
+      const techExists = await this.prisma.technician.findUnique({
+        where: { id: dto.technicianId },
+      });
+      if (!techExists) {
+        throw new Error(`Technician ${dto.technicianId} not found`);
+      }
+    }
+
+    // Validate router exists
+    const routerExists = await this.prisma.router.findUnique({
+      where: { id: dto.routerId },
+    });
+    if (!routerExists) {
+      throw new Error(`Router ${dto.routerId} not found`);
+    }
+
     const mission = await this.prisma.mission.create({
       data: {
-        technicianId: techId,
+        technicianId: dto.technicianId,
         routerId: dto.routerId,
-        description: '',
+        description: dto.description || '',
         status: 'ASSIGNED',
       },
     });
